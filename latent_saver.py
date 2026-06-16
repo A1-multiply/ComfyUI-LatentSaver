@@ -2,6 +2,12 @@ import os
 import torch
 import folder_paths
 
+def is_relative_to(path, base):
+    path = os.path.normcase(os.path.realpath(path))
+    base = os.path.normcase(os.path.realpath(base))
+    return os.path.commonpath([path, base]) == base
+
+
 def list_all_latents_in_output():
     """
     output 폴더 내의 모든 하위 폴더를 포함하여 .pt 파일을 찾습니다.
@@ -17,6 +23,8 @@ def list_all_latents_in_output():
         for file in files:
             if file.lower().endswith(".pt"):
                 full_path = os.path.join(root, file)
+                if not is_relative_to(full_path, output_dir):
+                    continue
                 # output 폴더 기준 상대 경로 생성
                 rel_path = os.path.relpath(full_path, output_dir)
                 # 확장자 제거
@@ -61,14 +69,17 @@ class A1_Save_Latent:
         folder_name = folder_name.strip()
         filename_prefix = filename_prefix.strip()
 
-        # 경로 조작 방지 (.. 체크)
-        if ".." in folder_name or folder_name.startswith("/") or folder_name.startswith("\\"):
+        # 경로 조작 방지
+        if os.path.isabs(folder_name) or os.path.isabs(filename_prefix):
              # 보안을 위해 강제로 Saved_Latent로 리셋하거나 에러 발생. 여기서는 안전한 경로로 저장되게 처리.
              print(f"[A1_Save_Latent] Invalid folder name detected, reverting to default.")
              folder_name = "Saved_Latent"
+             filename_prefix = os.path.basename(filename_prefix)
 
         save_dir = os.path.join(output_dir, folder_name)
-        os.makedirs(save_dir, exist_ok=True)
+
+        if not is_relative_to(save_dir, output_dir):
+             raise PermissionError("Cannot save outside the output directory.")
 
         # 확장자(.pt) 중복 입력 방지
         if filename_prefix.lower().endswith(".pt"):
@@ -78,8 +89,10 @@ class A1_Save_Latent:
         save_path = os.path.join(save_dir, filename)
 
         # output 폴더 내부에 있는지 최종 확인 (Symbolic link 등을 통한 탈출 방지)
-        if not os.path.abspath(save_path).startswith(os.path.abspath(output_dir)):
+        if not is_relative_to(save_path, output_dir):
              raise PermissionError("Cannot save outside the output directory.")
+
+        os.makedirs(save_dir, exist_ok=True)
 
         counter = 1
         # 중복된 파일명이 존재하면 숫자를 붙여서 새로운 이름 생성
@@ -140,6 +153,9 @@ class A1_Load_Latent:
         filename = f"{name}.pt"
         load_path = os.path.join(output_dir, filename)
 
+        if not is_relative_to(load_path, output_dir):
+            raise PermissionError("Cannot load outside the output directory.")
+
         if not os.path.exists(load_path):
              # 윈도우/리눅스 경로 구분자 차이 등으로 못 찾을 경우를 대비해 normalize 시도
              load_path = os.path.normpath(load_path)
@@ -148,7 +164,10 @@ class A1_Load_Latent:
                     f"[A1_Load_Latent] latent not found: {load_path}"
                 )
 
-        data = torch.load(load_path, map_location="cpu")
+        try:
+            data = torch.load(load_path, map_location="cpu", weights_only=True)
+        except TypeError:
+            data = torch.load(load_path, map_location="cpu")
 
         if isinstance(data, dict):
             samples = data

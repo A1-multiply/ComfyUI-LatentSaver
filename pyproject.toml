@@ -1,0 +1,19 @@
+[project]
+name = "a1-latent-saver"
+version = "1.0.0"
+description = "Save and reload ComfyUI latent tensors from the output directory."
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.10"
+dependencies = []
+classifiers = [
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+Repository = "https://github.com/A1-multiply/ComfyUI-LatentSaver"
+"Bug Tracker" = "https://github.com/A1-multiply/ComfyUI-LatentSaver/issues"
+
+[tool.comfy]
+PublisherId = "A1-multiply"
+DisplayName = "ComfyUI LatentSaver"
